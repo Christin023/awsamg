@@ -1,0 +1,75 @@
+graph TB
+    subgraph "AWS Cloud"
+        subgraph "VPC 10.1.0.0/16"
+            subgraph "Public Subnets - 3 AZs"
+                NAT[NAT Gateway]
+                ALB["ALB Ingress (optional)"]
+            end
+
+            subgraph "Private Subnets - 3 AZs"
+                subgraph "EKS Cluster - K8s 1.35"
+                    subgraph "Core Node Group: 2-5x m6g.xlarge Graviton"
+                        subgraph "openclaw-operator-system ns"
+                            OP["OpenClaw Operator (Helm)"]
+                        end
+
+                        subgraph "openclaw ns"
+                            OC1["OpenClawInstance: Bedrock Agent"]
+                            OC2["OpenClawInstance: Slack Bot"]
+                        end
+
+                        subgraph "monitoring ns (optional)"
+                            PROM[Prometheus]
+                            GRAF[Grafana]
+                        end
+
+                        subgraph "litellm ns (optional)"
+                            LITE[LiteLLM Proxy]
+                        end
+
+                        subgraph "agent-sandbox ns (optional)"
+                            SANDBOX[Agent Sandbox CRDs]
+                        end
+                    end
+
+                    subgraph "Kata Node Group (optional): Bare Metal"
+                        subgraph "kata-system ns"
+                            KATA["Kata Containers (Firecracker)"]
+                        end
+                        KARP["Karpenter (optional)"]
+                        OC3["OpenClawInstance: VM-isolated"]
+                    end
+
+                    CSI_EBS[EBS CSI Driver]
+                    CSI_EFS[EFS CSI Driver]
+                end
+
+                EFS[("Amazon EFS: Workspace Storage")]
+            end
+        end
+
+        CF["CloudFront CDN (optional)"]
+        BEDROCK["Amazon Bedrock: Foundation Models"]
+        KMS["AWS KMS: Cluster Encryption"]
+        IAM["IAM IRSA Role: Bedrock Access"]
+        ECR["ECR (China mirror only)"]
+    end
+
+    ALB --> OC1
+    ALB --> OC2
+    CF -.-> ALB
+    NAT --> BEDROCK
+    OC1 --> |IRSA| IAM
+    OC2 --> |IRSA| IAM
+    OC3 --> |IRSA| IAM
+    IAM --> BEDROCK
+    LITE -.-> BEDROCK
+    OP --> |manages| OC1
+    OP --> |manages| OC2
+    OP --> |manages| OC3
+    CSI_EFS --> EFS
+    PROM -.-> GRAF
+    KATA --> OC3
+
+    classDef optional fill:#f9f,stroke:#333,stroke-dasharray: 5 5
+    class ALB,CF,PROM,GRAF,LITE,KATA,KARP,SANDBOX,ECR,OC3 optional
